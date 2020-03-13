@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -113,6 +112,12 @@ func Provider() terraform.ResourceProvider {
 				Default:     true,
 				Description: "Enable signing of AWS elasticsearch requests",
 			},
+			"es_version": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Default:     "7.1.0",
+				Description: "ElasticSearch Version",
+			},
 		},
 
 		ResourcesMap: map[string]*schema.Resource{
@@ -149,6 +154,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	password := d.Get("password").(string)
 	parsedUrl, err := url.Parse(rawUrl)
 	signAWSRequests := d.Get("sign_aws_requests").(bool)
+	es_version := d.Get("es_version").(string)
 	if err != nil {
 		return nil, err
 	}
@@ -182,13 +188,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	}
 	relevantClient = client
 
-	// Use the v7 client to ping the cluster to determine the version
-	info, _, err := client.Ping(rawUrl).Do(context.TODO())
-	if err != nil {
-		return nil, err
-	}
-
-	if info.Version.Number < "7.0.0" && info.Version.Number >= "6.0.0" {
+	if es_version < "7.0.0" && es_version >= "6.0.0" {
 		log.Printf("[INFO] Using ES 6")
 		opts := []elastic6.ClientOptionFunc{
 			elastic6.SetURL(rawUrl),
@@ -215,7 +215,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-	} else if info.Version.Number < "6.0.0" && info.Version.Number >= "5.0.0" {
+	} else if es_version < "6.0.0" && es_version >= "5.0.0" {
 		log.Printf("[INFO] Using ES 5")
 		opts := []elastic5.ClientOptionFunc{
 			elastic5.SetURL(rawUrl),
@@ -241,7 +241,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-	} else if info.Version.Number < "5.0.0" {
+	} else if es_version < "5.0.0" {
 		return nil, errors.New("ElasticSearch is older than 5.0.0!")
 	}
 
